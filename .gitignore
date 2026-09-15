@@ -1,0 +1,49 @@
+# 数据库（运行时生成）
+*.db
+*.db-journal
+
+# 基准测试输出
+benchmarks/**/predictions*.json
+benchmarks/**/predictions*.jsonl
+benchmarks/**/cognimem_predictions.jsonl
+benchmarks/**/*_log.txt
+benchmarks/**/adapter_*.txt
+benchmarks/**/*.png
+
+# 克隆的仓库和数据集
+benchmarks/locomo/
+benchmarks/LongMemEval/data/
+benchmarks/LongMemEval/assets/
+benchmarks/LongMemEval/src/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 备份目录
+_backup_*/
+# ��ʱ�ļ�
+dryrun.txt
+cleanup.ps1

@@ -1,0 +1,58 @@
+pipeline:
+  input_gate:
+    enabled: true
+    score_threshold: 0.5
+  engram:
+    enabled: true
+    embed_dim: 768
+    table_size: 10000
+  hybrid_encoder:
+    enabled: true
+    full_attn_layers: 5
+    sparse_ratio: 0.3
+    num_blocks: 2
+    sparse_layers_per_block: 4
+    window_size: null
+    global_samples: null
+  liquid_engine:
+    enabled: true
+    hidden_dim: 512
+    time_constants: [0.1, 1.0, 10.0]
+  curiosity:
+    enabled: true
+    threshold: 0.7
+
+memory:
+  chunk_window_size: 3
+  parent_window_size: 8
+  episodic_db: "episodic.db"
+  semantic_db: "semantic.db"
+  working_memory_capacity: 10
+  routing:
+    cache_ttl: 60
+    bm25_alpha: 0.8
+  summarizer:
+    enabled: true
+    max_summary_tokens: 200
+  spreading_decay: 0.5
+  spreading_max_hops: 2
+  spreading_threshold: 0.1
+  spreading_budget: 10.0
+  recall:
+    use_query_understanding: false
+    use_query_decomposition: false
+    use_spreading_activation: true
+    use_vector_search: true
+    use_parent_chunks: false
+    use_bm25: true
+    use_reranker: false
+    reranker_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+llm:
+  enabled: false
+  cot_enabled: false
+  provider: "ollama"
+  model_name: "qwen2.5:0.5b"
+  base_url: "http://localhost:11434"
+  max_new_tokens: 256
+  temperature: 0.7
