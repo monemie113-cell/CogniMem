@@ -43,141 +43,121 @@ CogniMem is an innovative AI memory system that does not rely on any large langu
 
 ## 🏗️ Architecture Overview
 
-CogniMem employs a layered architecture of **four-layer cognitive pipeline + three-store persistent memory + six-path hybrid retrieval**.
+CogniMem is built on a **four-layer cognitive pipeline**, backed by **three persistent memory stores** and a **six-path hybrid retrieval** system.
 
-#### 1. Data Write Path
+### Part 1 · Data Write Path
 
 ```text
-                        ┌──────────────────────┐
-                        │     User Input       │
-                        └──────────┬───────────┘
-                                   │
-                                   ▼
-        ╔══════════════════════════════════════════════════════╗
-        ║         Layer 1 · Perception & Input Gate            ║
-        ╠══════════════════════════════════════════════════════╣
-        ║  6-dim scoring: importance / confidence / priority   ║
-        ║                 / timeliness / contradiction / relevance ║
-        ║  → Filters noise; drops information below threshold  ║
-        ╚══════════════════════════┬═══════════════════════════╝
-                                   │
-                                   ▼
-        ╔══════════════════════════════════════════════════════╗
-        ║         Layer 2 · Engram Knowledge Lookup (O(1) cache) ║
-        ╠══════════════════════════════════════════════════════╣
-        ║  Hash key-value cache; repeated queries return in ms ║
-        ╚══════════════════════════┬═══════════════════════════╝
-                                   │
-                                   ▼
-        ╔══════════════════════════════════════════════════════╗
-        ║      Layer 3 · HySparse Hybrid Sparse Encoding (Linear O(n)) ║
-        ╠══════════════════════════════════════════════════════╣
-        ║  Each Block = 1 Full Attn + N Sparse Attn            ║
-        ║  Full: generates top-k indices + KV Cache            ║
-        ║  Sparse: reuses KV, computes only local window + global sampling ║
-        ║  → 5× faster and 3× less memory than full attention at 1000 tokens ║
-        ╚══════════════════════════┬═══════════════════════════╝
-                                   │
-                                   ▼
-        ╔══════════════════════════════════════════════════════╗
-        ║       Layer 4 · Liquid Reasoning Engine (Liquid CfC, O(1)) ║
-        ╠══════════════════════════════════════════════════════╣
-        ║  Liquid time-constant network: dynamic state evolution, no KV Cache growth ║
-        ╚══════════════════════════┬═══════════════════════════╝
-                                   │
-                                   ▼
-        ╔══════════════════════════════════════════════════════╗
-        ║              Triple Extraction & Hierarchical Storage ║
-        ╠══════════════════════════════════════════════════════╣
-        ║  ① Event layer: (speaker, said, <full sentence>)  → raw evidence ║
-        ║  ② Knowledge layer: (subject, predicate, object) → graph edges ║
-        ║  ③ Temporal layer: (speaker, event_date, date)   → absolute time ║
-        ╚══════════════════════════┬═══════════════════════════╝
-                                   │
-                                   ▼
-        ┌──────────────────────────────────────────────────────┐
-        │              Three-Store Persistent Memory            │
-        │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐  │
-        │  │  Episodic     │ │  Semantic     │ │  Working      │  │
-        │  │  SQLite      │ │  Graph        │ │  LRU Buffer   │  │
-        │  │  (episodes)  │ │  (triples)   │ │  (deque)     │  │
-        │  │  + chunks    │ │  + vector idx │ │  capacity=10  │ │
-        │  └──────────────┘ └──────────────┘ └──────────────┘  │
-        └──────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                        User Input                           │
+└──────────────────────────────┬──────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Layer 1 · Perception & Input Gate                          │
+│  ├─ 6-dim scoring: importance / confidence / priority /     │
+│  │                 timeliness / contradiction / relevance    │
+│  └─ Filters noise; drops input below threshold              │
+└──────────────────────────────┬──────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Layer 2 · Engram Knowledge Lookup  (O(1) cache)            │
+│  └─ Hash key-value cache; repeated queries return instantly │
+└──────────────────────────────┬──────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Layer 3 · HySparse Hybrid Encoding  (Linear O(n))          │
+│  ├─ Each block: 1 Full Attn + N Sparse Attn                 │
+│  ├─ Full: generates top-k indices + KV Cache                │
+│  └─ Sparse: reuses KV, computes local window + global sampling │
+│     → 5× faster, 3× less memory than full attention @1000 tokens │
+└──────────────────────────────┬──────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Layer 4 · Liquid Reasoning Engine  (Liquid CfC, O(1))      │
+│  └─ Liquid time-constant network; no KV Cache growth        │
+└──────────────────────────────┬──────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Triple Extraction & Hierarchical Storage                   │
+│  ├─ ① Event     (speaker, said, <sentence>)   → evidence    │
+│  ├─ ② Knowledge (subject, predicate, object)  → graph edge  │
+│  └─ ③ Temporal  (speaker, event_date, date)   → abs. time   │
+└──────────────────────────────┬──────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Three-Store Persistent Memory              │
+│  ┌────────────┐    ┌────────────┐    ┌────────────┐         │
+│  │ Episodic   │    │ Semantic   │    │ Working    │         │
+│  │ SQLite     │    │ Graph      │    │ LRU Buffer │         │
+│  │ (episodes) │    │ (triples)  │    │ (deque)    │         │
+│  │ + chunks   │    │ + vec idx  │    │ capacity=10│         │
+│  └────────────┘    └────────────┘    └────────────┘         │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 
 
-#### 2. Data Retrieval Path
+### Part 2 · Data Retrieval Path
 
 ```text
-                        ┌──────────────────────┐
-                        │    User Query        │
-                        └──────────┬───────────┘
-                                   │
-                                   ▼
-        ┌──────────────────────────────────────────────────────┐
-        │           Query Understanding                        │
-        │  Entity extraction · Temporal signal detection · Intent classification · Query expansion │
-        └──────────────────────────┬───────────────────────────┘
-                                   │
-                    ┌──────────────┴──────────────┐
-                    │                             │
-                    ▼                             ▼
-        ┌───────────────────────┐     ┌───────────────────────┐
-        │  Aggregator           │     │   Six-Path Hybrid Recall │
-        │  SUM / TEMPORAL       │     │                       │
-        │  ↓ If high confidence, return directly │     │  ① Entity graph retrieval │
-        │                       │     │  ② Spreading activation │
-        │  COUNT disabled by default │     │  ③ Chunk semantic ranking │
-        └───────────────────────┘     │  ④ Vector semantic retrieval │
-                                      │  ⑤ BM25 (optional)     │
-                                      │  ⑥ Query decomposition (optional) │
-                                      └───────────┬───────────┘
-                                                  │
-                                                  ▼
-        ┌──────────────────────────────────────────────────────┐
-        │             IDF-Weighted Ranking (Rare-word Priority) │
-        │    IDF(t) = log((N+1) / (df(t)+1)) + 0.1             │
-        │    Rare words dominate ranking; frequent words downweighted │
-        └──────────────────────────┬───────────────────────────┘
-                                   │
-                                   ▼
-        ┌──────────────────────────────────────────────────────┐
-        │          RRF Fusion (Reciprocal Rank Fusion)         │
-        │    score(d) = Σ weight_i / (k + rank_i(d))           │
-        │    Entity graph 1.2 > Spreading 1.1 > Vector 1.0 > BM25 0.8 │
-        └──────────────────────────┬───────────────────────────┘
-                                   │
-                                   ▼
-        ┌──────────────────────────────────────────────────────┐
-        │           Parent Chunk Replacement / Context Aggregation │
-        │    Fine-grained retrieval → Coarse-grained return → Complete context for LLM │
-        └──────────────────────────┬───────────────────────────┘
-                                   │
-                                   ▼
-                        ┌──────────────────────┐
-                        │   Top-K Memory Segments │
-                        └──────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                        User Query                           │
+└──────────────────────────────┬──────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Query Understanding                                        │
+│  └─ Entity extraction · Temporal signal · Intent · Expansion│
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+              ┌────────────────┴────────────────┐
+              ▼                                 ▼
+┌───────────────────────────┐    ┌───────────────────────────┐
+│  Aggregator (optional)    │    │  Six-Path Hybrid Recall   │
+│  ├─ SUM / TEMPORAL        │    │  ├─ ① Entity graph        │
+│  ├─ COUNT: disabled       │    │  ├─ ② Spreading activation│
+│  └─ If high-confidence,   │    │  ├─ ③ Chunk semantic rank │
+│     return directly       │    │  ├─ ④ Vector semantic     │
+└───────────────────────────┘    │  ├─ ⑤ BM25 (optional)     │
+                                 │  └─ ⑥ Query decomposition │
+                                 └──────────────┬────────────┘
+                                                ▼
+┌─────────────────────────────────────────────────────────────┐
+│  IDF-Weighted Ranking                                       │
+│  └─ IDF(t) = log((N+1) / (df(t)+1)) + 0.1                   │
+│     Rare words dominate; frequent words downweighted        │
+└──────────────────────────────┬──────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│  RRF Fusion  (Reciprocal Rank Fusion)                       │
+│  └─ score(d) = Σ weight_i / (k + rank_i(d))                 │
+│     Entity graph 1.2 > Spreading 1.1 > Vector 1.0 > BM25 0.8│
+└──────────────────────────────┬──────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Parent Chunk Replacement / Context Aggregation             │
+│  └─ Fine-grained retrieval → coarse-grained return          │
+└──────────────────────────────┬──────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      Top-K Memory Segments                  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 
 
-#### 3. Core Design Principles
+### Part 3 · Core Design Principles
 
 ```text
-        ┌──────────────────────────────────────────────────────┐
-        │              Zero LLM Dependency · Pure Statistics + Rules │
-        ├──────────────────────────────────────────────────────┤
-        │                                                      │
-        │   Memory layer: Associative triples (brain-like structured storage) │
-        │   Retrieval layer: IDF statistics + graph spreading (brain-like association) │
-        │   Temporal layer: Relative time → absolute date (brain-like temporal normalization) │
-        │   Aggregation layer: Extract values from segments (brain-like induction) │
-        │                                                      │
-        │   → Runs on CPU, 4GB RAM, no GPU required            │
-        │                                                      │
-        └──────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                Zero LLM Dependency · Pure Stat + Rules      │
+├─────────────────────────────────────────────────────────────┤
+│  Memory layer      : Associative triples (brain-like)       │
+│  Retrieval layer   : IDF statistics + graph spreading       │
+│  Temporal layer    : Relative time → absolute date          │
+│  Aggregation layer : Value extraction from segments         │
+│                                                             │
+│  → CPU only · 4GB RAM · No GPU required                     │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 
