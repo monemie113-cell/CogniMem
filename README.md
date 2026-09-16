@@ -1,301 +1,311 @@
+
+
 # CogniMem
 
-**一个受人类认知启发的、零 LLM 依赖的智能体记忆与检索架构**
+**A human-cognition-inspired, zero-LLM-dependency memory and retrieval architecture for AI agents**
 
-CogniMem 是一个创新的 AI 记忆系统，它不依赖任何大语言模型，通过模拟人脑的"关联思维"与"分层记忆"机制，在 LoCoMo 长期对话基准上实现了 **84.2% 的关键词命中率**和 **26.4% 的精确包含命中率**，性能超越目前所有公开的零 LLM 方案，逼近依赖 GPT-4 级别模型的生产系统。
+CogniMem is an innovative AI memory system that does not rely on any large language model. By simulating the brain's "associative thinking" and "hierarchical memory" mechanisms, it achieves **84.2% keyword hit rate** and **26.4% exact match hit rate** on the LoCoMo long-term dialogue benchmark, surpassing all publicly available zero-LLM solutions and approaching the performance of production systems that rely on GPT-4-level models.
 
----
-
-## 📖 目录
-
-- [核心特性](#-核心特性)
-- [架构总览](#-架构总览)
-- [核心创新](#-核心创新)
-- [基准测试结果](#-基准测试结果)
-- [快速开始](#-快速开始)
-- [项目结构](#-项目结构)
-- [关键模块详解](#-关键模块详解)
-- [与竞品对比](#-与竞品对比)
-- [设计理念](#-设计理念)
-- [已知局限](#-已知局限)
-- [未来路线图](#-未来路线图)
-- [贡献指南](#-贡献指南)
-
----
-
-## ✨ 核心特性
-
-- 🧠 **零 LLM 依赖**：所有检索与推理均为纯统计算法 + 规则系统，无任何大模型参与
-- 🔗 **关联思维架构**：存储结构化的实体-关系-实体三元组，而非原始文本
-- 📊 **IDF 加权检索**：自动识别稀有词与高频词，动态调整检索权重
-- ⏰ **时间归一化**：自动将"yesterday"、"last week" 等相对时间转换为绝对日期
-- 🕸️ **扩散激活**：从种子实体出发，沿图结构联想间接相关记忆
-- 📐 **三层三元组**：事件层（原文证据）+ 知识层（图关系）+ 时间层（绝对日期）
-- 🌱 **好奇心驱动**：主动识别知识空白并生成探索性问题
-- 💾 **本地持久化**：基于 SQLite，零外部依赖，可完全离线运行
-- 🔬 **可复现基准**：所有性能数据均可通过开源脚本复现
+[English](README.md) | [中文](README_zh.md)
 
 ------
 
-## 🏗️ 架构总览
+## 📖 Table of Contents
 
-CogniMem 采用**四层认知流水线 + 三库持久化记忆 + 六路混合检索**的分层架构。
+- Core Features
+- Architecture Overview
+- Core Innovations
+- Benchmark Results
+- Quick Start
+- Project Structure
+- Key Module Details
+- Comparison with Competitors
+- Design Philosophy
+- Known Limitations
+- Roadmap
+- Contributing
 
-#### 一、数据写入路径
+------
+
+## ✨ Core Features
+
+- 🧠 **Zero LLM Dependency**: All retrieval and reasoning are pure statistical algorithms + rule-based systems, with no large model involvement
+- 🔗 **Associative Thinking Architecture**: Stores structured entity-relation-entity triples instead of raw text
+- 📊 **IDF-Weighted Retrieval**: Automatically identifies rare vs. frequent words and dynamically adjusts retrieval weights
+- ⏰ **Temporal Normalization**: Automatically converts relative time expressions like "yesterday", "last week" into absolute dates
+- 🕸️ **Spreading Activation**: Starting from seed entities, associates indirectly related memories along the graph structure
+- 📐 **Three-Layer Triples**: Event layer (raw evidence) + Knowledge layer (graph relations) + Temporal layer (absolute dates)
+- 🌱 **Curiosity-Driven**: Actively identifies knowledge gaps and generates exploratory questions
+- 💾 **Local Persistence**: Based on SQLite, zero external dependencies, fully offline capable
+- 🔬 **Reproducible Benchmarks**: All performance data can be reproduced via open-source scripts
+
+------
+
+## 🏗️ Architecture Overview
+
+CogniMem employs a layered architecture of **four-layer cognitive pipeline + three-store persistent memory + six-path hybrid retrieval**.
+
+#### 1. Data Write Path
 
 ```text
                         ┌──────────────────────┐
-                        │     用户输入          │
+                        │     User Input       │
                         └──────────┬───────────┘
                                    │
                                    ▼
         ╔══════════════════════════════════════════════════════╗
-        ║         第一层 · 感知与输入门控 (Input Gate)             ║
+        ║         Layer 1 · Perception & Input Gate            ║
         ╠══════════════════════════════════════════════════════╣
-        ║  6 维评分：重要性 / 置信度 / 优先级 / 时效性         	   ║
-        ║           / 矛盾度 / 相关性                        	   ║
-        ║  → 过滤噪音，低于阈值的信息直接丢弃                   	   ║
+        ║  6-dim scoring: importance / confidence / priority   ║
+        ║                 / timeliness / contradiction / relevance ║
+        ║  → Filters noise; drops information below threshold  ║
         ╚══════════════════════════┬═══════════════════════════╝
                                    │
                                    ▼
         ╔══════════════════════════════════════════════════════╗
-        ║         第二层 · Engram 知识查找 (O(1) 缓存)             ║
+        ║         Layer 2 · Engram Knowledge Lookup (O(1) cache) ║
         ╠══════════════════════════════════════════════════════╣
-        ║  				哈希键值缓存，重复查询秒级返回               ║
+        ║  Hash key-value cache; repeated queries return in ms ║
         ╚══════════════════════════┬═══════════════════════════╝
                                    │
                                    ▼
         ╔══════════════════════════════════════════════════════╗
-        ║      第三层 · HySparse 混合稀疏编码 (Linear O(n))        ║
+        ║      Layer 3 · HySparse Hybrid Sparse Encoding (Linear O(n)) ║
         ╠══════════════════════════════════════════════════════╣
-        ║  每个 Block = 1 层 Full Attn + N 层 Sparse Attn        ║
-        ║  Full：生成 top-k 索引 + KV Cache                      ║
-        ║  Sparse：复用 KV，仅算局部窗口 + 全局采样                  ║
-        ║  → 1000 token 下比全注意力快 5×、省内存 3×                
+        ║  Each Block = 1 Full Attn + N Sparse Attn            ║
+        ║  Full: generates top-k indices + KV Cache            ║
+        ║  Sparse: reuses KV, computes only local window + global sampling ║
+        ║  → 5× faster and 3× less memory than full attention at 1000 tokens ║
         ╚══════════════════════════┬═══════════════════════════╝
                                    │
                                    ▼
         ╔══════════════════════════════════════════════════════╗
-        ║       第四层 · 液态推理引擎 (Liquid CfC, O(1))           ║
+        ║       Layer 4 · Liquid Reasoning Engine (Liquid CfC, O(1)) ║
         ╠══════════════════════════════════════════════════════╣
-        ║  液态时间常数网络：动态状态演化，无 KV Cache 增长     	   ║
+        ║  Liquid time-constant network: dynamic state evolution, no KV Cache growth ║
         ╚══════════════════════════┬═══════════════════════════╝
                                    │
                                    ▼
         ╔══════════════════════════════════════════════════════╗
-        ║              三元组提取与分层存储                        ║
+        ║              Triple Extraction & Hierarchical Storage ║
         ╠══════════════════════════════════════════════════════╣
-        ║  ① 事件层：(speaker, said, <整句>)      → 全文证据   	   ║
-        ║  ② 知识层：(subject, predicate, object) → 图关系边      ║
-        ║  ③ 时间层：(speaker, event_date, 日期)  → 绝对时间   	   ║
+        ║  ① Event layer: (speaker, said, <full sentence>)  → raw evidence ║
+        ║  ② Knowledge layer: (subject, predicate, object) → graph edges ║
+        ║  ③ Temporal layer: (speaker, event_date, date)   → absolute time ║
         ╚══════════════════════════┬═══════════════════════════╝
                                    │
                                    ▼
         ┌──────────────────────────────────────────────────────┐
-        │                  三库持久化记忆                         │
+        │              Three-Store Persistent Memory            │
         │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐  │
-        │  │  情景记忆      │ │  语义记忆     │ │  工作记忆      │  │
-        │  │  SQLite      │ │  图结构       │ │  LRU 缓冲     │  │
+        │  │  Episodic     │ │  Semantic     │ │  Working      │  │
+        │  │  SQLite      │ │  Graph        │ │  LRU Buffer   │  │
         │  │  (episodes)  │ │  (triples)   │ │  (deque)     │  │
-        │  │  + chunks    │ │  + 向量索引   │ │  capacity=10  │ │
+        │  │  + chunks    │ │  + vector idx │ │  capacity=10  │ │
         │  └──────────────┘ └──────────────┘ └──────────────┘  │
         └──────────────────────────────────────────────────────┘
 ```
 
 
 
-#### 二、数据检索路径
+#### 2. Data Retrieval Path
 
 ```text
                         ┌──────────────────────┐
-                        │     用户查询          │
+                        │    User Query        │
                         └──────────┬───────────┘
                                    │
                                    ▼
         ┌──────────────────────────────────────────────────────┐
-        │               查询理解 (Query Understanding)           │
-        │   实体提取 · 时间信号识别 · 意图分类 · 查询扩展             │
+        │           Query Understanding                        │
+        │  Entity extraction · Temporal signal detection · Intent classification · Query expansion │
         └──────────────────────────┬───────────────────────────┘
                                    │
                     ┌──────────────┴──────────────┐
                     │                             │
                     ▼                             ▼
         ┌───────────────────────┐     ┌───────────────────────┐
-        │  聚合器 (Aggregator)   │     │   六路混合检索召回       │
+        │  Aggregator           │     │   Six-Path Hybrid Recall │
         │  SUM / TEMPORAL       │     │                       │
-        │  ↓ 若高置信度直接返回    │     │  ① 实体图检索           │
-        │                       │     │  ② 扩散激活            │
-        │  COUNT 默认关闭         │     │  ③ Chunk 语义排序      │
-        └───────────────────────┘     │  ④ 向量语义检索         │
-                                      │  ⑤ BM25（可选）        │
-                                      │  ⑥ 查询分解（可选）      │
+        │  ↓ If high confidence, return directly │     │  ① Entity graph retrieval │
+        │                       │     │  ② Spreading activation │
+        │  COUNT disabled by default │     │  ③ Chunk semantic ranking │
+        └───────────────────────┘     │  ④ Vector semantic retrieval │
+                                      │  ⑤ BM25 (optional)     │
+                                      │  ⑥ Query decomposition (optional) │
                                       └───────────┬───────────┘
                                                   │
                                                   ▼
         ┌──────────────────────────────────────────────────────┐
-        │              IDF 加权排序 (Rare-word Priority)         │
+        │             IDF-Weighted Ranking (Rare-word Priority) │
         │    IDF(t) = log((N+1) / (df(t)+1)) + 0.1             │
-        │    稀有词主导排序，高频词降权                             │
+        │    Rare words dominate ranking; frequent words downweighted │
         └──────────────────────────┬───────────────────────────┘
                                    │
                                    ▼
         ┌──────────────────────────────────────────────────────┐
-        │           RRF 融合 (Reciprocal Rank Fusion)           │
+        │          RRF Fusion (Reciprocal Rank Fusion)         │
         │    score(d) = Σ weight_i / (k + rank_i(d))           │
-        │    实体图 1.2 > 扩散激活 1.1 > 向量 1.0 > BM25 0.8       │
+        │    Entity graph 1.2 > Spreading 1.1 > Vector 1.0 > BM25 0.8 │
         └──────────────────────────┬───────────────────────────┘
                                    │
                                    ▼
         ┌──────────────────────────────────────────────────────┐
-        │           父块替换 / 上下文聚合 (Parent Chunk)           │
-        │    小粒度检索 → 大粒度返回 → 给 LLM 完整语境               │
+        │           Parent Chunk Replacement / Context Aggregation │
+        │    Fine-grained retrieval → Coarse-grained return → Complete context for LLM │
         └──────────────────────────┬───────────────────────────┘
                                    │
                                    ▼
                         ┌──────────────────────┐
-                        │   Top-K 记忆片段       │
+                        │   Top-K Memory Segments │
                         └──────────────────────┘
 ```
 
 
 
-#### 三、核心设计原则
+#### 3. Core Design Principles
 
 ```text
         ┌──────────────────────────────────────────────────────┐
-        │              零 LLM 依赖 · 纯统计 + 规则                │
+        │              Zero LLM Dependency · Pure Statistics + Rules │
         ├──────────────────────────────────────────────────────┤
         │                                                      │
-        │   记忆层：关联三元组（人脑式结构化存储）                    │
-        │   检索层：IDF 统计 + 图扩散（人脑式联想）                  │
-        │   时间层：相对时间 → 绝对日期（人脑式时序归一化）             │
-        │   聚合层：从片段提取数值（人脑式归纳）                      │
+        │   Memory layer: Associative triples (brain-like structured storage) │
+        │   Retrieval layer: IDF statistics + graph spreading (brain-like association) │
+        │   Temporal layer: Relative time → absolute date (brain-like temporal normalization) │
+        │   Aggregation layer: Extract values from segments (brain-like induction) │
         │                                                      │
-        │   → CPU 即可运行，4GB 内存，无 GPU 需求                  │
+        │   → Runs on CPU, 4GB RAM, no GPU required            │
         │                                                      │
         └──────────────────────────────────────────────────────┘
 ```
 
----
 
-## 💡 核心创新
 
-### 1. 三层三元组结构
+------
 
-CogniMem 不存储原始对话文本，而是提取三种类型的结构化三元组：
+## 💡 Core Innovations
 
-| 层级       | 格式                              | 示例                                                    | 用途                |
-| ---------- | --------------------------------- | ------------------------------------------------------- | ------------------- |
-| **事件层** | `(speaker, said, <整句>)`         | `(Caroline, said, "I went to a LGBTQ group yesterday")` | 全文检索的 evidence |
-| **知识层** | `(subject, predicate, object)`    | `(Caroline, went_to, LGBTQ group)`                      | 扩散激活的图边      |
-| **时间层** | `(speaker, event_date, 绝对日期)` | `(Caroline, event_date, "7 May 2023")`                  | 时间类查询          |
+### 1. Three-Layer Triple Structure
 
-### 2. IDF 加权实体图检索
+CogniMem does not store raw dialogue text; instead it extracts three types of structured triples:
 
-传统向量检索无法区分"Caroline"（高频）和"LGBTQ"（稀有）的重要性。CogniMem 引入信息检索领域的经典 IDF 公式：IDF(t) = log((N + 1) / (df(t) + 1)) + 0.1
+| Layer               | Format                                 | Example                                                 | Purpose                              |
+| :------------------ | :------------------------------------- | :------------------------------------------------------ | :----------------------------------- |
+| **Event Layer**     | `(speaker, said, <full sentence>)`     | `(Caroline, said, "I went to a LGBTQ group yesterday")` | Full-text evidence for retrieval     |
+| **Knowledge Layer** | `(subject, predicate, object)`         | `(Caroline, went_to, LGBTQ group)`                      | Graph edges for spreading activation |
+| **Temporal Layer**  | `(speaker, event_date, absolute date)` | `(Caroline, event_date, "7 May 2023")`                  | Temporal queries                     |
 
-- `N`：三元组总数
-- `df(t)`：包含关键词 t 的三元组数量
+### 2. IDF-Weighted Entity Graph Retrieval
 
-**效果**：稀有词自动获得高权重，高频词（如说话人名字）被降权。
+Traditional vector retrieval cannot distinguish the importance of "Caroline" (frequent) vs. "LGBTQ" (rare). CogniMem introduces the classic IDF formula from information retrieval:
 
-### 3. 时间归一化
+IDF(t) = log((N + 1) / (df(t) + 1)) + 0.1
 
-对话中的时间表达往往是相对的（"yesterday"、"last week"），而标准答案需要绝对日期。CogniMem 利用会话时间戳自动完成转换：
+- `N`: total number of triples
+- `df(t)`: number of triples containing keyword t
+
+**Effect**: Rare words automatically gain high weight; frequent words (such as speaker names) are downweighted.
+
+### 3. Temporal Normalization
+
+Temporal expressions in dialogue are often relative ("yesterday", "last week"), while ground-truth answers require absolute dates. CogniMem uses session timestamps to perform the conversion automatically:
 
 Session time: "1:56 pm on 8 May, 2023"
 Text: "I went to a LGBTQ support group yesterday"
-↓ 归一化
+↓ Normalization
 Result: "7 May 2023"
 
-### 4. 扩散激活
+### 4. Spreading Activation
 
-从种子实体出发，沿知识层图结构进行带衰减的激活传播：
+Starting from seed entities, activation propagates along the knowledge-layer graph with decay:
 
-能量传播公式：E(target) = E(source) × decay_factor × edge_confidence
+Energy propagation formula: E(target) = E(source) × decay_factor × edge_confidence
 
-- `decay_factor = 0.5`（每跳衰减一半）
-- `max_hops = 2`（最多传播 2 跳）
-- `activation_threshold = 0.1`（低于阈值停止传播）
+- `decay_factor = 0.5` (halves each hop)
+- `max_hops = 2` (maximum 2 hops)
+- `activation_threshold = 0.1` (stops propagating below threshold)
 
-### 5. 混合分块策略
+### 5. Hybrid Chunking Strategy
 
-| 粒度             | 覆盖范围             | 用途                 |
-| ---------------- | -------------------- | -------------------- |
-| **Turn**         | 1 轮对话             | 精确检索单元         |
-| **Chunk**        | 3 轮对话（滑动窗口） | 上下文丰富单元       |
-| **Parent Chunk** | 8 轮对话             | 大上下文返回（预留） |
+| Granularity      | Coverage                          | Purpose                         |
+| :--------------- | :-------------------------------- | :------------------------------ |
+| **Turn**         | 1 dialogue turn                   | Precise retrieval unit          |
+| **Chunk**        | 3 dialogue turns (sliding window) | Context-rich unit               |
+| **Parent Chunk** | 8 dialogue turns                  | Large context return (reserved) |
 
-### 6. 轻量级聚合器（可选）
+### 6. Lightweight Aggregator (Optional)
 
-对"how much total X"类查询，聚合器从多个检索片段中提取数值并求和。纯规则实现，零 LLM 依赖。
+For queries like "how much total X", the aggregator extracts numeric values from multiple retrieved segments and sums them. Pure rule-based, zero LLM dependency.
 
-**当前限制**：COUNT 类型（"how many X"）在自然语言对话上准确率不足，已默认关闭。
+**Current limitation**: COUNT-type questions ("how many X") have insufficient accuracy on natural language dialogue, so they are disabled by default.
 
----
+------
 
-## 📊 基准测试结果
+## 📊 Benchmark Results
 
-### 数据集 1：LoCoMo
+### Dataset 1: LoCoMo
 
-[LoCoMo](https://github.com/snap-research/locomo) 是 ACL 2024 发布的长期对话记忆基准，包含 10 个对话、1542 个 QA 对，覆盖单跳、多跳、时序、开放域等多种查询类型。
+[LoCoMo](https://github.com/snap-research/locomo) is a long-term dialogue memory benchmark released at ACL 2024, containing 10 dialogues and 1542 QA pairs, covering single-hop, multi-hop, temporal, and open-domain query types.
 
-**评估指标**：
+**Evaluation Metrics**:
 
-- **精确包含命中率**：标准答案的完整字符串出现在检索结果中
-- **关键词命中率**：标准答案的至少一个关键词出现在检索结果中
+- **Exact Match Hit Rate**: The complete string of the ground-truth answer appears in the retrieval results
+- **Keyword Hit Rate**: At least one keyword from the ground-truth answer appears in the retrieval results
 
-**结果**（零 LLM、CPU 运行、无外部 API 调用）：
+**Results** (zero LLM, CPU-only, no external API calls):
 
-| 版本                            | 精确包含  | 关键词命中 |
-| ------------------------------- | --------- | ---------- |
-| 纯认知基线（实体图 + 向量）     | 7.7%      | 56.6%      |
-| + IDF 加权                      | 13.2%     | 65.1%      |
-| + 时间归一化                    | 18.4%     | 79.5%      |
-| **+ 知识层 + 扩散激活（当前）** | **26.4%** | **84.2%**  |
+| Version                                                | Exact Match | Keyword Hit |
+| :----------------------------------------------------- | :---------- | :---------- |
+| Pure cognitive baseline (entity graph + vector)        | 7.7%        | 56.6%       |
+| + IDF weighting                                        | 13.2%       | 65.1%       |
+| + Temporal normalization                               | 18.4%       | 79.5%       |
+| **+ Knowledge layer + spreading activation (current)** | **26.4%**   | **84.2%**   |
 
-**详细数据**：
+**Detailed Data**:
 
-- 总 QA 数：**1542**
-- 精确包含命中：**407（26.4%）**
-- 关键词命中：**1299（84.2%）**
+- Total QA pairs: **1542**
+- Exact match hits: **407 (26.4%)**
+- Keyword hits: **1299 (84.2%)**
 
-### 数据集 2：LongMemEval
+### Dataset 2: LongMemEval
 
-[LongMemEval](https://github.com/xiaowu0162/LongMemEval) 是 ICLR 2025 发布的长期记忆基准，包含 500 个 QA，覆盖多会话推理、知识更新、时序推理、信息提取、弃权五类能力。
+[LongMemEval](https://github.com/xiaowu0162/LongMemEval) is a long-term memory benchmark released at ICLR 2025, containing 500 QA pairs covering multi-session reasoning, knowledge updates, temporal reasoning, information extraction, and abstention.
 
-**结果**（150 条样本，零 LLM）：
+**Results** (150 samples, zero LLM):
 
-| 类别                      | 精确包含  | 关键词命中 |
-| ------------------------- | --------- | ---------- |
-| **整体（150 条）**        | **38.0%** | **60.7%**  |
-| single-session-user       | 48.6%     | 67.1%      |
-| multi-session             | 37.1%     | 41.9%      |
-| single-session-preference | 0%        | 100%       |
+| Category                  | Exact Match | Keyword Hit |
+| :------------------------ | :---------- | :---------- |
+| **Overall (150 samples)** | **38.0%**   | **60.7%**   |
+| single-session-user       | 48.6%       | 67.1%       |
+| multi-session             | 37.1%       | 41.9%       |
+| single-session-preference | 0%          | 100%        |
 
-**关键发现**：`multi-session` 类别需要跨片段聚合数值，检索层能命中 80% 的相关片段，但缺少数值聚合能力。这一问题已通过聚合器部分缓解。
+**Key Finding**: The `multi-session` category requires aggregating values across segments. The retrieval layer can hit 80% of relevant segments but lacks numeric aggregation capability. This issue has been partially alleviated by the aggregator.
 
-### 复现方式
+### Reproduction
 
 ```bash
 # LoCoMo
 cd benchmarks
-python check_recall.py    		# 完整 10 个对话
+python check_recall.py    		# full 10 dialogues
 
 # LongMemEval
 cd benchmarks/LongMemEval
-python cognimem_adapter.py      # 生成预测
-python eval_retrieval.py        # 计算指标
+python cognimem_adapter.py      # generate predictions
+python eval_retrieval.py        # compute metrics
 ```
 
-## 🚀 快速开始
 
-### 环境要求
+
+## 🚀 Quick Start
+
+### Requirements
 
 - Python 3.10+
-- 4GB+ 内存（CPU 即可运行，无需 GPU）
+- 4GB+ RAM (CPU only, no GPU required)
 
-### 安装
+### Installation
 
 ```bash
 git clone https://github.com/your-username/CogniMem.git
@@ -305,9 +315,9 @@ pip install -e .
 
 
 
-### 依赖
+### Dependencies
 
-```text
+```bash
 numpy>=1.24.0
 pyyaml>=6.0
 sentence-transformers>=2.2.0
@@ -318,7 +328,7 @@ scikit-learn>=1.3.0
 
 
 
-下载 spaCy 英文模型：
+Download the spaCy English model:
 
 ```bash
 python -m spacy download en_core_web_sm
@@ -326,20 +336,20 @@ python -m spacy download en_core_web_sm
 
 
 
-### 基础用法
+### Basic Usage
 
 ```python
 from cognimem.core import CogniMemPipeline
 import yaml
 
-# 加载配置
+# Load configuration
 with open('config/default_config.yaml', 'r', encoding='utf-8') as f:
     config = yaml.safe_load(f)
 
-# 初始化流水线
+# Initialize pipeline
 pipeline = CogniMemPipeline(config)
 
-# 存储记忆
+# Store memory
 pipeline.memory.store({
     'content': 'I went to a LGBTQ support group yesterday',
     'timestamp': 0,
@@ -349,7 +359,7 @@ pipeline.memory.store({
     }
 })
 
-# 检索
+# Retrieve
 results = pipeline.memory.recall("When did Caroline go to the LGBTQ group?", k=5)
 for r in results:
     print(f"[{r['source']}] {r['content'][:200]}")
@@ -357,7 +367,7 @@ for r in results:
 
 
 
-**输出示例**：
+**Example Output**:
 
 ```text
 [entity_graph] [Date: 7 May 2023] I went to a LGBTQ support group yesterday and it was so powerful.
@@ -365,7 +375,7 @@ for r in results:
 
 
 
-### 运行基准测试
+### Run Benchmarks
 
 ```bash
 cd benchmarks
@@ -376,68 +386,68 @@ python check_recall.py
 
 ------
 
-## 📁 项目结构
+## 📁 Project Structure
 
 ```text
 CogniMem/
 ├── config/
-│   └── default_config.yaml           # 配置文件
+│   └── default_config.yaml           # Configuration file
 ├── src/
 │   └── cognimem/
-│       ├── core/                     # 主流水线
+│       ├── core/                     # Main pipeline
 │       │   ├── config_manager.py
 │       │   └── pipeline.py
-│       ├── layers/                   # 四层认知流水线
-│       │   ├── engram.py             # 知识查找
-│       │   ├── hybrid_encoder.py     # 混合稀疏编码
-│       │   ├── hybrid_encoder_torch.py  # PyTorch 版本（实验）
-│       │   ├── input_gate.py         # 感知与门控
-│       │   └── liquid_engine.py      # 液态推理引擎
-│       ├── memory/                   # 持久化记忆系统
-│       │   ├── aggregator.py         # 轻量级聚合器
-│       │   ├── bm25_retriever.py     # BM25（可选）
-│       │   ├── curiosity.py          # 好奇心驱动
-│       │   ├── episodic.py           # 情景记忆（分层分块）
-│       │   ├── fusion.py             # RRF 融合
-│       │   ├── persistent_memory.py  # 核心记忆管理
-│       │   ├── query_decomposition.py # 查询分解
-│       │   ├── reranker.py           # 重排序（可选）
-│       │   ├── routing.py            # 多路检索路由
-│       │   ├── semantic.py           # 语义记忆（图结构）
-│       │   ├── spreading_activation.py  # 扩散激活
-│       │   └── working_memory.py     # 工作记忆
-│       ├── models/                   # 底层模型
+│       ├── layers/                   # Four-layer cognitive pipeline
+│       │   ├── engram.py             # Knowledge lookup
+│       │   ├── hybrid_encoder.py     # Hybrid sparse encoding
+│       │   ├── hybrid_encoder_torch.py  # PyTorch version (experimental)
+│       │   ├── input_gate.py         # Perception & gate
+│       │   └── liquid_engine.py      # Liquid reasoning engine
+│       ├── memory/                   # Persistent memory system
+│       │   ├── aggregator.py         # Lightweight aggregator
+│       │   ├── bm25_retriever.py     # BM25 (optional)
+│       │   ├── curiosity.py          # Curiosity-driven
+│       │   ├── episodic.py           # Episodic memory (hierarchical chunking)
+│       │   ├── fusion.py             # RRF fusion
+│       │   ├── persistent_memory.py  # Core memory management
+│       │   ├── query_decomposition.py # Query decomposition
+│       │   ├── reranker.py           # Reranker (optional)
+│       │   ├── routing.py            # Multi-path retrieval routing
+│       │   ├── semantic.py           # Semantic memory (graph structure)
+│       │   ├── spreading_activation.py  # Spreading activation
+│       │   └── working_memory.py     # Working memory
+│       ├── models/                   # Base models
 │       │   ├── base.py
 │       │   ├── engram_table.py
 │       │   ├── liquid_cell.py
 │       │   ├── small_gate.py
 │       │   └── sparse_attn.py
-│       ├── llm/                      # LLM 集成（可选）
+│       ├── llm/                      # LLM integration (optional)
 │       │   ├── base.py
 │       │   ├── huggingface.py
 │       │   └── ollama.py
 │       ├── utils/
 │       │   ├── helpers.py
 │       │   ├── logger.py
-│       │   └── text_processor.py     # spaCy 封装
+│       │   └── text_processor.py     # spaCy wrapper
 │       └── demo/
 │           └── run_demo.py
-├── benchmarks/                       # 基准测试脚本
-│   ├── check_recall.py               # LoCoMo 召回率基准
-│   ├── evaluate_agent.py             # 完整 Agent 评估
+├── benchmarks/                       # Benchmark scripts
+│   ├── check_recall.py               # LoCoMo recall benchmark
+│   ├── evaluate_agent.py             # Full agent evaluation
 │   ├── evaluate_locomo.py
-│   ├── benchmark_hysparse.py         # HySparse 性能基准
-│   ├── quality_check.py              # HySparse 质量验证
-│   ├── diagnose*.py                  # 诊断工具
-│   ├── test_one_query.py             # 单查询验证
+│   ├── benchmark_hysparse.py         # HySparse performance benchmark
+│   ├── quality_check.py              # HySparse quality check
+│   ├── diagnose*.py                  # Diagnostic tools
+│   ├── test_one_query.py             # Single query validation
 │   └── LongMemEval/
-│       ├── cognimem_adapter.py       # LongMemEval 适配器
-│       ├── cognimem_adapter_multi.py # multi-session 专用
-│       ├── eval_retrieval.py         # 评估脚本
+│       ├── cognimem_adapter.py       # LongMemEval adapter
+│       ├── cognimem_adapter_multi.py # multi-session specific
+│       ├── eval_retrieval.py         # Evaluation script
 │       ├── eval_multi.py
-│       ├── test_aggregator.py        # 聚合器单元测试
+│       ├── test_aggregator.py        # Aggregator unit tests
 │       └── check_predictions.py
-├── tests/                            # 单元测试
+├── tests/                            # Unit tests
 │   ├── test_memory.py
 │   ├── test_pipeline.py
 │   ├── test_curiosity.py
@@ -457,183 +467,183 @@ CogniMem/
 
 
 
-**注**：`benchmarks/locomo/` 和 `benchmarks/LongMemEval/data/` 是外部数据集，需自行下载。
+**Note**: `benchmarks/locomo/` and `benchmarks/LongMemEval/data/` are external datasets that need to be downloaded separately.
 
 ------
 
-## 🔧 关键模块详解
+## 🔧 Key Module Details
 
-### `persistent_memory.py`：记忆核心
+### `persistent_memory.py`: Memory Core
 
-**`_extract_triples`** 是系统的核心方法，负责将原始对话拆解为三种三元组：
+**`_extract_triples`** is the core method of the system, responsible for decomposing raw dialogue into three types of triples:
 
 ```python
 def _extract_triples(self, item, episodic_id):
-    # 1. 时间归一化 → (speaker, event_date, 绝对日期)
-    # 2. spaCy 依存分析 + 代词消解 → (subject, predicate, object)
-    # 3. 中文规则抽取 → 中文三元组
-    # 4. 智能回退 → (speaker, said, 整句)
-    # 5. 知识层提取 → (subject, verb_lemma, object)
+    # 1. Temporal normalization → (speaker, event_date, absolute date)
+    # 2. spaCy dependency parsing + pronoun resolution → (subject, predicate, object)
+    # 3. Chinese rule extraction → Chinese triples
+    # 4. Smart fallback → (speaker, said, full sentence)
+    # 5. Knowledge layer extraction → (subject, verb_lemma, object)
 ```
 
 
 
-**`_entity_graph_search`** 是检索核心：
+**`_entity_graph_search`** is the retrieval core:
 
 ```python
-# 1. 关键词扩展（实体 + 时间暗示词）
-# 2. IDF 加权计算
-# 3. 多关键词分数累加
-# 4. 时间类查询加权
-# 5. Top-K 返回
+# 1. Keyword expansion (entities + temporal hint words)
+# 2. IDF weighting
+# 3. Multi-keyword score accumulation
+# 4. Temporal query weighting
+# 5. Top-K return
 ```
 
 
 
-### `spreading_activation.py`：图联想
+### `spreading_activation.py`: Graph Association
 
 ```python
 class SpreadingActivation:
     def activate(self, seed_entities):
-        # BFS 遍历，带能量衰减
-        # 每条边传播：E(target) = E(source) × 0.5 × confidence
-        # 最多 2 跳
+        # BFS traversal with energy decay
+        # Propagation per edge: E(target) = E(source) × 0.5 × confidence
+        # Maximum 2 hops
 ```
 
 
 
-### `hybrid_encoder.py`：线性复杂度编码
+### `hybrid_encoder.py`: Linear Complexity Encoding
 
 ```python
 class HybridEncoder:
     def _hybrid_block_forward(self, seq):
-        # 每个 block：1 层 Full Attention + N 层 Sparse
-        # Full：生成 top-k token 索引和 KV Cache
-        # Sparse：复用索引和 KV，仅计算局部窗口 + 全局采样
+        # Each block: 1 Full Attention + N Sparse Attention
+        # Full: generates top-k token indices and KV Cache
+        # Sparse: reuses indices and KV, computes only local window + global sampling
 ```
 
 
 
 ------
 
-## 🏆 产品对比
+## 🏆 Comparison with Competitors
 
-| 系统                   | 关键词命中率 | LLM 依赖 | 类型             |
-| :--------------------- | :----------- | :------- | :--------------- |
-| 基础向量检索           | 49.7%        | 无       | 纯向量           |
-| YourMemory             | 59.0%        | 无       | 生物衰减记忆     |
-| HippoGraph 早期        | 44.2%        | 无       | 单轮粒度         |
-| HippoGraph Hybrid      | 65.5%        | 无       | 3-turn chunk     |
-| **CogniMem（本项目）** | **84.2%**    | **无**   | **认知架构**     |
-| HippoGraph 生产版      | 91.1%        | 有       | 完整流水线 + LLM |
+| System                      | Keyword Hit Rate | LLM Dependency | Type                       |
+| :-------------------------- | :--------------- | :------------- | :------------------------- |
+| Basic vector retrieval      | 49.7%            | No             | Pure vector                |
+| YourMemory                  | 59.0%            | No             | Biological decay memory    |
+| HippoGraph early            | 44.2%            | No             | Single-turn granularity    |
+| HippoGraph Hybrid           | 65.5%            | No             | 3-turn chunk               |
+| **CogniMem (this project)** | **84.2%**        | **No**         | **Cognitive architecture** |
+| HippoGraph production       | 91.1%            | Yes            | Full pipeline + LLM        |
 
-**关键差异**：HippoGraph 生产版依赖 LLM 做查询分解和重排序。CogniMem **完全零 LLM 依赖**，仅靠统计 + 规则实现了接近其 92% 的性能。
-
-------
-
-## 🎯 设计理念
-
-CogniMem 的设计灵感来源于对人脑认知机制的观察：
-
-#### 1. 人脑存储"关联"，而非原始文本
-
-人脑不会逐字记住对话，而是提取"谁做了什么"、"谁和谁有什么关系"。CogniMem 通过知识层三元组模拟这一机制。
-
-#### 2. 人脑有时序记忆，自动归一化时间
-
-人脑听到"昨天"时，会自动结合当前时间计算出绝对日期。CogniMem 通过 session_time + 相对时间表达模拟这一能力。
-
-#### 3. 人脑有联想能力，能触类旁通
-
-看到"Caroline"，人脑会自动联想"她最近参加了 LGBTQ 支持团体"、"她说想从事心理咨询"。CogniMem 通过扩散激活模拟这一机制。
-
-#### 4. 人脑不依赖暴力算力
-
-人脑功耗仅 20W。CogniMem 因此避免引入 Transformer 重排序、BM25 等重量级组件，坚持用最朴素的统计方法实现最优效果。
+**Key Difference**: HippoGraph production relies on LLM for query decomposition and reranking. CogniMem is **completely zero-LLM dependent**, achieving close to 92% of its performance using only statistics + rules.
 
 ------
 
-## ⚠️ 已知局限
+## 🎯 Design Philosophy
 
-CogniMem 是一个**原型系统**，具有以下局限：
+CogniMem's design is inspired by observations of human brain cognitive mechanisms:
 
-#### 1. COUNT 类聚合问题
+#### 1. The brain stores "associations", not raw text
 
-"how many X" 类型问题需要跨片段计数，纯规则方法在自然语言对话上的准确率约 40%，因此 COUNT 聚合器**默认关闭**。
+The brain does not remember conversations verbatim, but extracts "who did what" and "who is related to whom". CogniMem simulates this via knowledge-layer triples.
 
-SUM 类聚合器（"how much total X"）有效但覆盖面窄。
+#### 2. The brain has temporal memory and automatically normalizes time
 
-#### 2. 复杂时间推理
+When hearing "yesterday", the brain automatically computes the absolute date based on the current time. CogniMem simulates this capability via session_time + relative time expressions.
 
-"某日期前的星期几"、"距今天多少天" 等需要日历计算的问题，当前只支持基础相对时间转换（yesterday/last week）。
+#### 3. The brain has associative ability and can infer by analogy
 
-#### 3. 跨段落代词消解
+Seeing "Caroline", the brain automatically associates "she recently joined an LGBTQ support group" and "she said she wants to work in psychological counseling". CogniMem simulates this via spreading activation.
 
-当前代词消解依赖 spaCy 的句子级分析，跨段落指代（"她" 指代前一段提到的某个人）无法处理。
+#### 4. The brain does not rely on brute-force computation
 
-#### 4. 嵌入模型依赖
-
-虽然系统本身零 LLM 依赖，但检索层使用 `sentence-transformers` 做语义嵌入。若追求纯统计方案，可以替换为 BM25，但性能会下降。
+The brain consumes only 20W. CogniMem therefore avoids heavyweight components like Transformer rerankers and BM25, insisting on the simplest statistical methods for optimal results.
 
 ------
 
-## 🗺️ 未来路线图
+## ⚠️ Known Limitations
 
-#### 已完成 ✅
+CogniMem is a **prototype system** with the following limitations:
 
-- ☑ 四层认知流水线
-- ☑ 实体图 + IDF 加权检索
-- ☑ 时间归一化
-- ☑ 知识层三元组
-- ☑ 扩散激活
-- ☑ 好奇心驱动
-- ☑ 轻量级聚合器（SUM 类型）
+#### 1. COUNT-type aggregation problem
 
-#### 进行中 🚧
+"how many X" questions require cross-segment counting. Pure rule-based methods achieve about 40% accuracy on natural language dialogue, so the COUNT aggregator is **disabled by default**.
 
-- □ 查询分解（保守模式）
-- □ 跨段落代词消解
-- □ COUNT 类聚合优化
+SUM aggregator ("how much total X") is effective but narrow in coverage.
 
-#### 远期规划 📅
+#### 2. Complex temporal reasoning
 
-- □ 记忆巩固（睡眠机制）
-- □ 权重学习的液态推理引擎
-- □ RESTful API 服务化
-- □ 多语言支持
-- □ 与真实 LLM 的端到端集成评估
+Questions requiring calendar calculations such as "what day of the week was before a certain date" or "how many days from today" are currently limited to basic relative time conversion (yesterday/last week).
+
+#### 3. Cross-paragraph pronoun resolution
+
+Current pronoun resolution relies on spaCy's sentence-level analysis; cross-paragraph references (e.g., "she" referring to someone mentioned in a previous paragraph) cannot be handled.
+
+#### 4. Embedding model dependency
+
+Although the system itself is zero-LLM dependent, the retrieval layer uses `sentence-transformers` for semantic embeddings. For a purely statistical approach, BM25 could be used instead, but performance would decrease.
 
 ------
 
-## 🤝 贡献指南
+## 🗺️ Roadmap
 
-欢迎所有形式的贡献：
+#### Completed ✅
 
-- 🐛 报告 bug
-- 💡 提出新功能
-- 📝 改进文档
-- 🧪 提交基准测试结果
-- 🌍 添加多语言支持
+- ☑ Four-layer cognitive pipeline
+- ☑ Entity graph + IDF-weighted retrieval
+- ☑ Temporal normalization
+- ☑ Knowledge-layer triples
+- ☑ Spreading activation
+- ☑ Curiosity-driven
+- ☑ Lightweight aggregator (SUM type)
 
-请先开 issue 讨论，再提交 PR。
+#### In Progress 🚧
+
+- □ Query decomposition (conservative mode)
+- □ Cross-paragraph pronoun resolution
+- □ COUNT-type aggregation optimization
+
+#### Future Plans 📅
+
+- □ Memory consolidation (sleep mechanism)
+- □ Weight-learning liquid reasoning engine
+- □ RESTful API service
+- □ Multilingual support
+- □ End-to-end integration evaluation with real LLMs
 
 ------
 
-## 📄 许可证
+## 🤝 Contributing
 
-本项目采用 **Apache 2.0** 许可证。
+All forms of contribution are welcome:
+
+- 🐛 Report bugs
+- 💡 Propose new features
+- 📝 Improve documentation
+- 🧪 Submit benchmark results
+- 🌍 Add multilingual support
+
+Please open an issue for discussion before submitting a PR.
 
 ------
 
-## 🙏 致谢
+## 📄 License
 
-- [LoCoMo](https://github.com/snap-research/locomo)：提供了高质量的长期对话基准
-- [LongMemEval](https://github.com/xiaowu0162/LongMemEval)：提供了长期记忆评估基准
-- [spaCy](https://spacy.io/)：提供了可靠的 NLP 基础能力
-- [sentence-transformers](https://www.sbert.net/)：提供了语义嵌入支持
+This project is licensed under the **Apache 2.0** License.
 
 ------
 
-**CogniMem** —— 用最朴素的统计方法，实现最接近人脑的关联记忆。
+## 🙏 Acknowledgements
 
-*"真正的智能，不在于堆砌更多参数，而在于更聪明地组织和使用知识。"*
+- [LoCoMo](https://github.com/snap-research/locomo): provided a high-quality long-term dialogue benchmark
+- [LongMemEval](https://github.com/xiaowu0162/LongMemEval): provided a long-term memory evaluation benchmark
+- [spaCy](https://spacy.io/): provided reliable NLP foundation
+- [sentence-transformers](https://www.sbert.net/): provided semantic embedding support
+
+------
+
+**CogniMem** — Using the simplest statistical methods to achieve associative memory closest to the human brain.
+
+*"True intelligence lies not in stacking more parameters, but in organizing and using knowledge more intelligently."*
